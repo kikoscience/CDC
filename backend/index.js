@@ -15,7 +15,7 @@ const io = new Server(server, {
 
 const config = {
   user: process.env.DB_USER || 'sa',
-  password: process.env.DB_PASSWORD || 'Rfx14.14w.',
+  password: process.env.DB_PASSWORD || 'Rfx14w.14w.',
   server: process.env.DB_SERVER || process.env.DB_HOST || '10.0.1.90',
   port: parseInt(process.env.DB_PORT) || 1433,
   database: process.env.DB_DATABASE || 'hospital',

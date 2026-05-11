@@ -1,23 +1,9 @@
 services:
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: cdc-mssql
-    environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=Rfx14w.14w.
-      - MSSQL_PID=Developer
-    ports:
-      - "1433:1433"
-    volumes:
-      - ./sql-init:/docker-entrypoint-initdb.d # Note: mssql doesn't use this naturally, we'll need a trick or just run it
-
   backend:
     build: ./backend
     container_name: cdc-backend
-    depends_on:
-      - mssql
     environment:
-      - DB_HOST=mssql
+      - DB_HOST=10.0.1.90
       - DB_USER=sa
       - DB_PASSWORD=Rfx14w.14w.
       - DB_DATABASE=hospital
