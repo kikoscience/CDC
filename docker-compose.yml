@@ -2,7 +2,10 @@ services:
   backend:
     build: ./backend
     container_name: cdc-backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    environment:
+      - DB_HOST=10.0.1.90
+      - DB_USER=sa
+      - DB_PASSWORD=Rfx14.4w.
+      - DB_DATABASE=hospital
     ports:
       - "3001:3001"

@@ -4,6 +4,8 @@ const { Server } = require('socket.io');
 const sql = require('mssql');
 const cors = require('cors');
 
+require('dotenv').config();
+
 const app = express();
 app.use(cors());
 const server = http.createServer(app);
@@ -12,10 +14,10 @@ const io = new Server(server, {
 });
 
 const config = {
-  user: 'sa',
-  password: 'Rfx14w14w.',
-  server: 'host.docker.internal',
-  database: 'hospital',
+  user: process.env.DB_USER || 'sa',
+  password: process.env.DB_PASSWORD || 'Rfx14w14w.',
+  server: process.env.DB_HOST || '10.0.1.90',
+  database: process.env.DB_DATABASE || 'hospital',
   options: {
     encrypt: true,
     trustServerCertificate: true
