@@ -15,14 +15,19 @@ const io = new Server(server, {
 
 const config = {
   user: process.env.DB_USER || 'sa',
-  password: process.env.DB_PASSWORD || 'Rfx14w14w.',
-  server: process.env.DB_HOST || '10.0.1.90',
+  password: process.env.DB_PASSWORD || 'Rfx14.14w.',
+  server: process.env.DB_SERVER || process.env.DB_HOST || '10.0.1.90',
+  port: parseInt(process.env.DB_PORT) || 1433,
   database: process.env.DB_DATABASE || 'hospital',
   options: {
-    encrypt: true,
-    trustServerCertificate: true
+    instanceName: process.env.DB_INSTANCE,
+    encrypt: false,
+    trustServerCertificate: true,
+    connectTimeout: 30000
   }
 };
+
+console.log(`[CDC] Connecting to ${config.server}:${config.port}${config.options.instanceName ? '\\' + config.options.instanceName : ''}...`);
 
 let lastLsn = null;
 let eventCache = []; 
