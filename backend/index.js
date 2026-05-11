@@ -32,6 +32,60 @@ console.log(`[CDC] Connecting to ${config.server}:${config.port}${config.options
 let lastLsn = null;
 let eventCache = []; 
 
+async function initializeDatabase() {
+  try {
+    const tempConfig = { ...config, database: 'master' };
+    const pool = await sql.connect(tempConfig);
+    
+    console.log('[System] Checking database state...');
+    
+    // Create database if not exists
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '${config.database}')
+      CREATE DATABASE ${config.database};
+    `);
+    
+    await sql.close();
+    const dbPool = await sql.connect(config);
+    
+    // Enable CDC on DB
+    await dbPool.request().query(`
+      IF (SELECT is_cdc_enabled FROM sys.databases WHERE name = '${config.database}') = 0
+      BEGIN
+        EXEC sys.sp_cdc_enable_db;
+        PRINT 'CDC Enabled on database';
+      END
+    `);
+
+    // Enable CDC on ALL tables automatically
+    const tablesResult = await dbPool.request().query(`
+      SELECT name FROM sys.tables WHERE is_ms_shipped = 0
+    `);
+    
+    for (const table of tablesResult.recordset) {
+      const tableName = table.name;
+      const captureInstance = `dbo_${tableName}`;
+      
+      await dbPool.request().query(`
+        IF NOT EXISTS (SELECT * FROM cdc.change_tables WHERE capture_instance = '${captureInstance}')
+        BEGIN
+          PRINT 'Enabling CDC for table: ${tableName}';
+          EXEC sys.sp_cdc_enable_table
+            @source_schema = N'dbo',
+            @source_name   = N'${tableName}',
+            @role_name     = NULL,
+            @supports_net_changes = 1;
+        END
+      `);
+    }
+
+    console.log('[System] Database and CDC initialized for all tables.');
+  } catch (err) {
+    console.error('[System] Initialization Warning:', err.message);
+    // Continue anyway, maybe CDC is already enabled but we lack permissions to check
+  }
+}
+
 async function pollChanges() {
   try {
     const pool = await sql.connect(config);
@@ -106,7 +160,8 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(3001, () => {
+server.listen(3001, async () => {
   console.log(`[System] Dynamic CDC Monitor started on port 3001`);
+  await initializeDatabase();
   pollChanges();
 });
