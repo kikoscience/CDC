@@ -1,0 +1,8 @@
+services:
+  backend:
+    build: ./backend
+    container_name: cdc-backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3001:3001"

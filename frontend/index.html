@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL COMMAND CENTER | MSSQL CDC</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            SQL COMMAND CENTER
+        </div>
+        <div class="status-badge">
+            <div id="connection-indicator" class="status-indicator"></div>
+            <span id="connection-text">OFFLINE</span>
+        </div>
+    </header>
+
+    <main>
+        <section class="panel">
+            <div class="panel-header"><span class="panel-title">System Metrics</span></div>
+            <div class="stats-grid">
+                <div class="stat-card"><div id="stat-total" class="stat-value">0</div><div class="stat-label">Total Captures</div></div>
+                <div class="stat-card"><div id="stat-inserts" class="stat-value">0</div><div class="stat-label">Inserts</div></div>
+                <div class="stat-card"><div id="stat-updates" class="stat-value">0</div><div class="stat-label">Updates</div></div>
+                <div class="stat-card"><div id="stat-deletes" class="stat-value">0</div><div class="stat-label">Deletes</div></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Real-time Data Stream</span>
+                <span id="lsn-display" style="font-size: 0.7rem; color: var(--text-secondary);">LSN: --</span>
+            </div>
+            <div class="cdc-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">Operation</th>
+                            <th style="width: 150px;">Table</th>
+                            <th style="width: 120px;">Time</th>
+                            <th>Data Fields (Key: Value)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="feed-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const socket = io('http://localhost:3001');
+        const feedBody = document.getElementById('feed-body');
+        const connIndicator = document.getElementById('connection-indicator');
+        const connText = document.getElementById('connection-text');
+        const lsnDisplay = document.getElementById('lsn-display');
+        
+        let stats = { total: 0, INSERT: 0, UPDATE_AFTER: 0, DELETE: 0 };
+
+        socket.on('connect', () => {
+            connIndicator.classList.add('online');
+            connText.innerText = 'ONLINE';
+        });
+
+        socket.on('disconnect', () => {
+            connIndicator.classList.remove('online');
+            connText.innerText = 'OFFLINE';
+        });
+
+        socket.on('status', (data) => {
+            if (data.lastLsn) lsnDisplay.innerText = `LSN: ${data.lastLsn.substring(0, 12)}...`;
+            if (data.history && data.history.length > 0) {
+                feedBody.innerHTML = '';
+                data.history.reverse().forEach(change => addChangeToTable(change));
+            }
+        });
+
+        socket.on('cdc-change', (changes) => {
+            changes.forEach(change => {
+                stats.total++;
+                if (stats[change.operationType] !== undefined) stats[change.operationType]++;
+                updateStats();
+                addChangeToTable(change);
+            });
+        });
+
+        function updateStats() {
+            document.getElementById('stat-total').innerText = stats.total;
+            document.getElementById('stat-inserts').innerText = stats.INSERT;
+            document.getElementById('stat-updates').innerText = stats.UPDATE_AFTER;
+            document.getElementById('stat-deletes').innerText = stats.DELETE;
+        }
+
+        function addChangeToTable(change) {
+            const row = document.createElement('tr');
+            const time = new Date(change.timestamp).toLocaleTimeString();
+            const tableName = change.table ? change.table.replace('dbo_', '') : 'N/A';
+            
+            const data = {};
+            Object.keys(change).forEach(key => {
+                if (!key.startsWith('__$') && !['operationType', 'timestamp', 'operation', 'update_mask', 'table', 'op'].includes(key)) {
+                    data[key] = change[key];
+                }
+            });
+
+            const dataHtml = Object.entries(data).map(([key, val]) => `
+                <div style="display: flex; gap: 15px; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 2px 0;">
+                    <span style="color: var(--text-secondary); width: 120px; font-size: 0.65rem; text-transform: uppercase; font-weight: bold;">${key}</span>
+                    <span style="color: var(--accent-blue); flex: 1;">${val}</span>
+                </div>
+            `).join('');
+
+            row.innerHTML = `
+                <td><span class="op-tag op-${change.operationType}">${change.operationType}</span></td>
+                <td class="table-cell">${tableName}</td>
+                <td class="time-cell">${time}</td>
+                <td class="data-cell">
+                    <div style="display: flex; flex-direction: column;">
+                        ${dataHtml}
+                    </div>
+                </td>
+            `;
+
+            feedBody.insertBefore(row, feedBody.firstChild);
+            if (feedBody.children.length > 50) feedBody.removeChild(feedBody.lastChild);
+        }
+    </script>
+</body>
+</html>
