@@ -48,6 +48,14 @@ async function initializeDatabase() {
     await sql.close();
     const dbPool = await sql.connect(config);
     
+    // FIX: Set owner to sa to resolve Error 15517
+    try {
+      await dbPool.request().query(`ALTER AUTHORIZATION ON DATABASE::${config.database} TO sa;`);
+      console.log('[System] Database ownership fixed.');
+    } catch (e) {
+      // Ignore if already owned or permission denied
+    }
+
     // Enable CDC on DB
     await dbPool.request().query(`
       IF (SELECT is_cdc_enabled FROM sys.databases WHERE name = '${config.database}') = 0

@@ -1,4 +1,12 @@
 services:
+  frontend:
+    image: nginx:alpine
+    container_name: cdc-frontend
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    ports:
+      - "5000:80"
+
   backend:
     build: ./backend
     container_name: cdc-backend
