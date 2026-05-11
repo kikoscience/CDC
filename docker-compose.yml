@@ -4,7 +4,7 @@ services:
     container_name: cdc-mssql
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=Rfx14.14w.
+      - MSSQL_SA_PASSWORD=Rfx14w.14w.
       - MSSQL_PID=Developer
     ports:
       - "1433:1433"
@@ -19,7 +19,7 @@ services:
     environment:
       - DB_HOST=mssql
       - DB_USER=sa
-      - DB_PASSWORD=Rfx14.14w.
+      - DB_PASSWORD=Rfx14w.14w.
       - DB_DATABASE=hospital
     ports:
       - "3001:3001"
