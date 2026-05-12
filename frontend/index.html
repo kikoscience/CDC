@@ -107,12 +107,25 @@
                 }
             });
 
-            const dataHtml = Object.entries(data).map(([key, val]) => `
-                <div style="display: flex; gap: 15px; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 2px 0;">
-                    <span style="color: var(--text-secondary); width: 120px; font-size: 0.65rem; text-transform: uppercase; font-weight: bold;">${key}</span>
-                    <span style="color: var(--accent-blue); flex: 1;">${val}</span>
-                </div>
-            `).join('');
+            const dataHtml = Object.entries(data).map(([key, val]) => {
+                let displayVal = val;
+                
+                // Format Unix Timestamps (10 digits for seconds, 13 for ms)
+                if (typeof val === 'number' || (!isNaN(val) && val !== null && val !== '')) {
+                    const num = Number(val);
+                    if ((num > 1000000000 && num < 4000000000) || (num > 1000000000000 && num < 4000000000000)) {
+                        const date = new Date(num > 1000000000000 ? num : num * 1000);
+                        displayVal = `<span title="Raw: ${val}">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</span>`;
+                    }
+                }
+
+                return `
+                    <div style="display: flex; gap: 15px; border-bottom: 1px solid rgba(255,255,255,0.03); padding: 2px 0;">
+                        <span style="color: var(--text-secondary); width: 120px; font-size: 0.65rem; text-transform: uppercase; font-weight: bold;">${key}</span>
+                        <span style="color: var(--accent-blue); flex: 1;">${displayVal}</span>
+                    </div>
+                `;
+            }).join('');
 
             row.innerHTML = `
                 <td><span class="op-tag op-${change.operationType}">${change.operationType}</span></td>
