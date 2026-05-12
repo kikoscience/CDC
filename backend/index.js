@@ -21,11 +21,14 @@ const config = {
   database: process.env.DB_DATABASE || 'hospital',
   options: {
     instanceName: process.env.DB_INSTANCE,
-    encrypt: false,
+    encrypt: process.env.DB_ENCRYPT === 'true',
     trustServerCertificate: true,
     connectTimeout: 30000
   }
 };
+
+console.log(`[CDC] Target DB: ${config.database} on ${config.server}`);
+console.log(`[CDC] Options: Encrypt=${config.options.encrypt}, Trust=${config.options.trustServerCertificate}`);
 
 console.log(`[CDC] Connecting to ${config.server}:${config.port}${config.options.instanceName ? '\\' + config.options.instanceName : ''}...`);
 
@@ -61,9 +64,23 @@ async function initializeDatabase() {
       IF (SELECT is_cdc_enabled FROM sys.databases WHERE name = '${config.database}') = 0
       BEGIN
         EXEC sys.sp_cdc_enable_db;
-        PRINT 'CDC Enabled on database';
+        console.log('[System] CDC Enabled on database');
       END
     `);
+
+    // Check if SQL Server Agent is running (required for CDC)
+    try {
+      const agentResult = await dbPool.request().query(`
+        SELECT status_desc FROM sys.dm_server_services WHERE name LIKE 'SQL Server Agent%';
+      `);
+      if (agentResult.recordset.length > 0 && agentResult.recordset[0].status_desc !== 'Running') {
+        console.warn(`[System] WARNING: SQL Server Agent is ${agentResult.recordset[0].status_desc}. CDC will not capture new changes until it is started.`);
+      } else if (agentResult.recordset.length === 0) {
+        console.warn('[System] WARNING: Could not determine SQL Server Agent status. Ensure it is running.');
+      }
+    } catch (e) {
+      // sys.dm_server_services might not be accessible depending on permissions
+    }
 
     // Enable CDC on ALL tables automatically
     const tablesResult = await dbPool.request().query(`
@@ -89,8 +106,12 @@ async function initializeDatabase() {
 
     console.log('[System] Database and CDC initialized for all tables.');
   } catch (err) {
-    console.error('[System] Initialization Warning:', err.message);
-    // Continue anyway, maybe CDC is already enabled but we lack permissions to check
+    console.error('[System] CRITICAL Initialization Error:', err.message);
+    if (err.message.includes('Login failed')) {
+      console.error('[System] Recommendation: Check DB_USER and DB_PASSWORD.');
+    } else if (err.message.includes('getaddrinfo')) {
+      console.error('[System] Recommendation: Check DB_HOST. Is it reachable from inside the container?');
+    }
   }
 }
 

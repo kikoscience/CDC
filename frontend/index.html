@@ -53,7 +53,7 @@
     </main>
 
     <script>
-        const socket = io(`${window.location.protocol}//${window.location.hostname}:3001`);
+        const socket = io();
         const feedBody = document.getElementById('feed-body');
         const connIndicator = document.getElementById('connection-indicator');
         const connText = document.getElementById('connection-text');
