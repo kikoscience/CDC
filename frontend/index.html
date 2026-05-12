@@ -98,7 +98,7 @@
         function addChangeToTable(change) {
             const row = document.createElement('tr');
             const time = new Date(change.timestamp).toLocaleTimeString();
-            const tableName = change.table ? change.table.replace('dbo_', '') : 'N/A';
+            const tableName = change.table || 'N/A';
             
             const data = {};
             Object.keys(change).forEach(key => {

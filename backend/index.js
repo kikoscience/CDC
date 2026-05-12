@@ -8,6 +8,10 @@ require('dotenv').config();
 
 const app = express();
 app.use(cors());
+
+// Healthcheck route
+app.get('/', (req, res) => res.status(200).send('CDC Monitor Active'));
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
@@ -84,27 +88,34 @@ async function initializeDatabase() {
 
     // Enable CDC on ALL tables automatically
     const tablesResult = await dbPool.request().query(`
-      SELECT name FROM sys.tables WHERE is_ms_shipped = 0
+      SELECT s.name AS schema_name, t.name AS table_name 
+      FROM sys.tables t
+      JOIN sys.schemas s ON t.schema_id = s.schema_id
+      WHERE t.is_ms_shipped = 0
     `);
     
     for (const table of tablesResult.recordset) {
-      const tableName = table.name;
-      const captureInstance = `dbo_${tableName}`;
+      const { schema_name, table_name } = table;
+      const captureInstance = `${schema_name}_${table_name}`;
       
-      await dbPool.request().query(`
-        IF NOT EXISTS (SELECT * FROM cdc.change_tables WHERE capture_instance = '${captureInstance}')
-        BEGIN
-          PRINT 'Enabling CDC for table: ${tableName}';
-          EXEC sys.sp_cdc_enable_table
-            @source_schema = N'dbo',
-            @source_name   = N'${tableName}',
-            @role_name     = NULL,
-            @supports_net_changes = 1;
-        END
-      `);
+      try {
+        await dbPool.request().query(`
+          IF NOT EXISTS (SELECT * FROM cdc.change_tables WHERE capture_instance = '${captureInstance}')
+          BEGIN
+            PRINT 'Enabling CDC for table: ${schema_name}.${table_name}';
+            EXEC sys.sp_cdc_enable_table
+              @source_schema = N'${schema_name}',
+              @source_name   = N'${table_name}',
+              @role_name     = NULL,
+              @supports_net_changes = 1;
+          END
+        `);
+      } catch (tableErr) {
+        console.warn(`[System] Warning: Could not enable CDC for ${schema_name}.${table_name}:`, tableErr.message);
+      }
     }
 
-    console.log('[System] Database and CDC initialized for all tables.');
+    console.log('[System] Database and CDC initialization phase complete.');
   } catch (err) {
     console.error('[System] CRITICAL Initialization Error:', err.message);
     if (err.message.includes('Login failed')) {
@@ -144,8 +155,8 @@ async function pollChanges() {
     for (const instance of captureInstances) {
       const instanceName = instance.capture_instance;
       
-      // 3. Query changes for EACH table
-      const query = `SELECT [__$operation] as op, * FROM cdc.fn_cdc_get_all_changes_${instanceName}(@from, @to, 'all')`;
+      // 3. Query changes for EACH table using brackets for the function name
+      const query = `SELECT [__$operation] as op, * FROM [cdc].[fn_cdc_get_all_changes_${instanceName}](@from, @to, 'all')`;
       
       try {
         const result = await pool.request()
@@ -159,7 +170,7 @@ async function pollChanges() {
           const ops = { 1: 'DELETE', 2: 'INSERT', 3: 'UPDATE_BEFORE', 4: 'UPDATE_AFTER' };
           const newChanges = result.recordset.map(row => ({
             ...row,
-            table: instanceName,
+            table: instanceName.replace('_', '.'), // Convert dbo_Users to dbo.Users
             operationType: ops[row.op] || 'UNKNOWN',
             timestamp: new Date().toISOString()
           }));
@@ -168,7 +179,7 @@ async function pollChanges() {
           io.emit('cdc-change', newChanges);
         }
       } catch (tableErr) {
-        // Silently skip if a table function fails (e.g. if it was just disabled)
+        // Silently skip if a table function fails
       }
     }
 
