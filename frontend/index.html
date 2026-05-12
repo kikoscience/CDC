@@ -110,11 +110,17 @@
             const dataHtml = Object.entries(data).map(([key, val]) => {
                 let displayVal = val;
                 
-                // Format Unix Timestamps (10 digits for seconds, 13 for ms)
+                // Format Unix Timestamps or ISO Date Strings
                 if (typeof val === 'number' || (!isNaN(val) && val !== null && val !== '')) {
                     const num = Number(val);
                     if ((num > 1000000000 && num < 4000000000) || (num > 1000000000000 && num < 4000000000000)) {
                         const date = new Date(num > 1000000000000 ? num : num * 1000);
+                        displayVal = `<span title="Raw: ${val}">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</span>`;
+                    }
+                } else if (typeof val === 'string' && val.includes('T') && val.endsWith('Z')) {
+                    // Handle ISO Strings (e.g. 2025-10-18T09:53:27.437Z)
+                    const date = new Date(val);
+                    if (!isNaN(date.getTime())) {
                         displayVal = `<span title="Raw: ${val}">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</span>`;
                     }
                 }
