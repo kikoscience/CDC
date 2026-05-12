@@ -102,12 +102,20 @@ async function initializeDatabase() {
         await dbPool.request().query(`
           IF NOT EXISTS (SELECT * FROM cdc.change_tables WHERE capture_instance = '${captureInstance}')
           BEGIN
-            PRINT 'Enabling CDC for table: ${schema_name}.${table_name}';
+            DECLARE @has_pk BIT = 0;
+            IF EXISTS (
+              SELECT 1 FROM sys.indexes 
+              WHERE object_id = OBJECT_ID(N'[${schema_name}].[${table_name}]') 
+              AND is_primary_key = 1
+            ) SET @has_pk = 1;
+
+            PRINT 'Enabling CDC for table: ${schema_name}.${table_name} (Net Changes: ' + CAST(@has_pk AS CHAR(1)) + ')';
+            
             EXEC sys.sp_cdc_enable_table
               @source_schema = N'${schema_name}',
               @source_name   = N'${table_name}',
               @role_name     = NULL,
-              @supports_net_changes = 1;
+              @supports_net_changes = @has_pk;
           END
         `);
       } catch (tableErr) {
