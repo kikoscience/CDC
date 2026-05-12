@@ -64,9 +64,9 @@ async function initializeDatabase() {
       IF (SELECT is_cdc_enabled FROM sys.databases WHERE name = '${config.database}') = 0
       BEGIN
         EXEC sys.sp_cdc_enable_db;
-        console.log('[System] CDC Enabled on database');
       END
     `);
+    console.log('[System] CDC check completed.');
 
     // Check if SQL Server Agent is running (required for CDC)
     try {
